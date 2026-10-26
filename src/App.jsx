@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { usePrivy, useLoginWithEmail } from '@privy-io/react-auth';
+import { usePrivy, useLoginWithEmail, useCreateWallet } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 
 const short = (a) => (a && a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 
