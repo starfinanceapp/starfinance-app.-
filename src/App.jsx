@@ -157,7 +157,33 @@ function SignedIn({ user, logout }) {
   if (user.twitter?.username) identities.push(['X', `@${user.twitter.username}`]);
 
   const wallets = (user.linkedAccounts || []).filter((a) => a.type === 'wallet');
+  const { createWallet: createEvmWallet } = useCreateWallet();
+  const { createWallet: createSolWallet } = useSolanaWallets();
+  const [creating, setCreating] = useState(false);
+  const tried = useRef(false);
 
+  useEffect(() => {
+    if (tried.current) return;
+    const has = (chain) =>
+      wallets.some((w) => w.walletClientType === 'privy' && (w.chainType || 'ethereum') === chain);
+    const todo = [];
+    if (!has('ethereum')) todo.push(createEvmWallet);
+    if (!has('solana')) todo.push(createSolWallet);
+    if (todo.length === 0) return;
+    tried.current = true;
+    setCreating(true);
+    (async () => {
+      for (const make of todo) {
+        try {
+          await make();
+        } catch {
+          /* wallet may already exist */
+        }
+      }
+      setCreating(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <main className="shell top">
       <header className="bar">
