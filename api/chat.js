@@ -48,4 +48,48 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Chat is not configured on the server." });
   }
 
-  const ip =
+    const ip =
+    (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
+    req.socket?.remoteAddress ||
+    "unknown";
+  if (rateLimited(ip)) {
+    return res.status(429).json({ error: "Too many requests. Please wait a minute." });
+  }
+
+  const messages = cleanMessages(req.body && req.body.messages);
+  if (!messages) {
+    return res.status(400).json({ error: "Invalid messages." });
+  }
+
+  try {
+    const upstream = await fetch(`${BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.LLM_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+        temperature: 0.4,
+        max_tokens: 600,
+      }),
+    });
+
+    if (!upstream.ok) {
+      const detail = await upstream.text();
+      console.error("LLM error", upstream.status, detail.slice(0, 500));
+      return res.status(502).json({ error: "The AI service returned an error." });
+    }
+
+    const data = await upstream.json();
+    const reply = data?.choices?.[0]?.message?.content;
+    if (!reply) {
+      return res.status(502).json({ error: "Empty response from the AI service." });
+    }
+    return res.status(200).json({ reply });
+  } catch (err) {
+    console.error("chat handler failed", err);
+    return res.status(500).json({ error: "Something went wrong." });
+  }
+}
