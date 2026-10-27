@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePrivy, useLoginWithEmail, useCreateWallet } from '@privy-io/react-auth';
-import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 
 const short = (a) => (a && a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 
@@ -158,7 +157,7 @@ function SignedIn({ user, logout }) {
 
   const wallets = (user.linkedAccounts || []).filter((a) => a.type === 'wallet');
   const { createWallet: createEvmWallet } = useCreateWallet();
-  const { createWallet: createSolWallet } = useSolanaWallets();
+  
   const [creating, setCreating] = useState(false);
   const tried = useRef(false);
 
@@ -168,7 +167,7 @@ function SignedIn({ user, logout }) {
       wallets.some((w) => w.walletClientType === 'privy' && (w.chainType || 'ethereum') === chain);
     const todo = [];
     if (!has('ethereum')) todo.push(createEvmWallet);
-    if (!has('solana')) todo.push(createSolWallet);
+    
     if (todo.length === 0) return;
     tried.current = true;
     setCreating(true);
