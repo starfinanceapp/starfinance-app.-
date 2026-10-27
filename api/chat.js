@@ -98,7 +98,8 @@ export default async function handler(req, res) {
     if (!reply) {
       return res.status(502).json({ error: "Empty response from the AI service." });
     }
-    return res.status(200).json({ reply });
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.status(200).send(reply);
   } catch (err) {
     console.error("chat handler failed", err);
     return res.status(500).json({ error: "Something went wrong." });
