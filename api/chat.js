@@ -1,9 +1,10 @@
 // Vercel serverless function: POST /api/chat
 // Works with any OpenAI-compatible provider.
-// Environment variables: LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+// Environment variables: LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_FALLBACK_MODEL (optional)
 
 const BASE_URL = (process.env.LLM_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
 const MODEL = process.env.LLM_MODEL || "gpt-4o-mini";
+const FALLBACK_MODEL = process.env.LLM_FALLBACK_MODEL || "";
 
 const SYSTEM_PROMPT = [
   "You are StarFinance AI, an assistant for researching markets, strategies and trading tools.",
@@ -18,6 +19,13 @@ const MAX_CHARS = 2000;
 const WINDOW_MS = 60000;
 const MAX_PER_WINDOW = 12;
 const hits = new Map();
+
+// Status yang layak dicoba ulang (server sibuk / kuota / model tidak ketemu -> coba cadangan)
+const SOFT_FAIL = new Set([404, 429, 500, 502, 503, 504]);
+const MODELS = [MODEL, FALLBACK_MODEL].filter((m, i, a) => m && a.indexOf(m) === i);
+const PER_MODEL = MODELS.length > 1 ? 2 : 3;
+const TRIES = MODELS.flatMap((m) => Array(PER_MODEL).fill(m));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function rateLimited(ip) {
   const now = Date.now();
@@ -69,39 +77,42 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Invalid messages." });
   }
 
-  try {
-    const upstream = await fetch(`${BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.LLM_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-        temperature: 0.4,
-        max_tokens: 600,
-      }),
-    });
+  for (let i = 0; i < TRIES.length; i++) {
+    try {
+      const upstream = await fetch(`${BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.LLM_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: TRIES[i],
+          messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+          temperature: 0.4,
+          max_tokens: 600,
+        }),
+      });
 
-    if (!upstream.ok) {
-      const detail = await upstream.text();
-      console.error("LLM error", upstream.status, detail.slice(0, 500));
-      return res.status(502).json({ error: "The AI service returned an error." });
+      if (upstream.ok) {
+        const data = await upstream.json();
+        const reply =
+          data && data.choices && data.choices[0] && data.choices[0].message
+            ? data.choices[0].message.content
+            : null;
+        if (reply) {
+          res.setHeader("Content-Type", "text/plain; charset=utf-8");
+          return res.status(200).send(reply);
+        }
+      } else {
+        const detail = await upstream.text();
+        console.error("LLM error", upstream.status, TRIES[i], detail.slice(0, 500));
+        if (!SOFT_FAIL.has(upstream.status)) break;
+      }
+    } catch (err) {
+      console.error("LLM fetch failed", err);
     }
-
-    const data = await upstream.json();
-    const reply =
-      data && data.choices && data.choices[0] && data.choices[0].message
-        ? data.choices[0].message.content
-        : null;
-    if (!reply) {
-      return res.status(502).json({ error: "Empty response from the AI service." });
-    }
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).send(reply);
-  } catch (err) {
-    console.error("chat handler failed", err);
-    return res.status(500).json({ error: "Something went wrong." });
+    if (i < TRIES.length - 1) await sleep(1000);
   }
+
+  return res.status(502).json({ error: "The AI service is busy. Please try again." });
 }
