@@ -1,4 +1,3 @@
-
 // Vercel serverless function: POST /api/chat
 // Works with any OpenAI-compatible provider.
 // Environment variables: LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
@@ -48,15 +47,24 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Chat is not configured on the server." });
   }
 
-    const ip =
+  const ip =
     (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
-    req.socket?.remoteAddress ||
+    (req.socket && req.socket.remoteAddress) ||
     "unknown";
   if (rateLimited(ip)) {
     return res.status(429).json({ error: "Too many requests. Please wait a minute." });
   }
 
-  const messages = cleanMessages(req.body && req.body.messages);
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+      body = null;
+    }
+  }
+
+  const messages = cleanMessages(body && body.messages);
   if (!messages) {
     return res.status(400).json({ error: "Invalid messages." });
   }
@@ -83,7 +91,10 @@ export default async function handler(req, res) {
     }
 
     const data = await upstream.json();
-    const reply = data?.choices?.[0]?.message?.content;
+    const reply =
+      data && data.choices && data.choices[0] && data.choices[0].message
+        ? data.choices[0].message.content
+        : null;
     if (!reply) {
       return res.status(502).json({ error: "Empty response from the AI service." });
     }
