@@ -8,11 +8,12 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "dependencies": {
+    "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0",
     "@privy-io/react-auth": "latest",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "viem": "^2.21.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {
