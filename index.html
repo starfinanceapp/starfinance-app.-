@@ -146,4 +146,4 @@ document.getElementById("cx").onkeydown=function(e){if(e.key=="Enter"&&!e.shiftK
 document.getElementById("cx").oninput=function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,140)+"px"};
 var IT=document.getElementById("it");IT.onclick=function(e){var t=e.target.dataset&&e.target.dataset.t;if(!t)return;Array.prototype.forEach.call(IT.children,function(b){b.className=b.dataset.t==t?"on":""});Array.prototype.forEach.call(document.querySelectorAll(".ip"),function(p){p.style.display=p.dataset.t==t?"block":"none"})};
 window.onhashchange=route;route();
-</script></body></html>
+</script></body></html><script src="/chat-fix.js"></script>
